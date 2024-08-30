@@ -5,7 +5,7 @@ OBJ_DIR := obj/
 BIN_DIR := bin/
 SRC_DIR := src/
 
-BIN_NAME := lf++
+BIN_NAME := os-build-utility
 
 SRC_FILES := $(wildcard $(SRC_DIR)*.cpp)
 OBJ_FILES := $(patsubst $(SRC_DIR)%.cpp, $(OBJ_DIR)%.o, $(SRC_FILES))
