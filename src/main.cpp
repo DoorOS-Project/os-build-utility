@@ -57,6 +57,15 @@ bool is_valid_docker_tag(const std::string &tag) {
 	return true;
 }
 
+void str_replace(std::string &from, const std::string &to, const std::string &str) {
+	size_t pos = from.find(str);
+
+	while (pos != std::string::npos) {
+		from.replace(pos, str.length(), to);
+		pos = from.find(str, pos + to.length());
+	}
+}
+
 void build() {
 	std::string build_cmd;
 
@@ -68,6 +77,7 @@ void build() {
 	}
 
 	std::getline(config_file, build_cmd);
+	str_replace(build_cmd, "%cd%", std::filesystem::current_path().string());
 
 	system(build_cmd.c_str());
 }
@@ -90,7 +100,7 @@ void run() {
 }
 
 void configure_docker_dockerfile() {
-	std::cout << "What's your OS name to make the Docker container tag?" << std::endl;
+	std::cout << "What's your OS name to make the Docker container's tag?" << std::endl;
 	std::string os_name;
 	get_input(os_name);
 
@@ -105,7 +115,7 @@ void configure_docker_dockerfile() {
 	std::string docker_build_cmd;
 	get_input(docker_build_cmd);
 
-	const std::string build_cmd = "docker run --rm -it -v \"" + std::filesystem::current_path().string() + R"(":"/root/end" )" + docker_tag + " " + docker_build_cmd;
+	const std::string build_cmd = R"(docker run --rm -it -v "%cd%":"/root/end" )" + docker_tag + " " + docker_build_cmd;
 
 	std::cout << "What's the command to run your OS?" << std::endl;
 	std::string run_cmd;
@@ -158,7 +168,7 @@ void configure_docker() {
 	std::string docker_env_path;
 	get_input(docker_env_path);
 
-	const std::string build_cmd = "docker run --rm -it -v \"" + std::filesystem::current_path().string() + "\":\"" + docker_env_path + "\" " + docker_tag + " " + docker_build_cmd;
+	const std::string build_cmd = R"(docker run --rm -it -v "%cd%":")" + docker_env_path + "\" " + docker_tag + " " + docker_build_cmd;
 
 	std::cout << "What's the command to run your OS?" << std::endl;
 	std::string run_cmd;
