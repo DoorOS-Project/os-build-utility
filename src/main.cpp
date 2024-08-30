@@ -29,6 +29,11 @@ void get_input(std::string &buff) {
 	buff.erase(std::remove(buff.begin(), buff.end(), '\r'), buff.end());
 }
 
+void get_input_lowercase(std::string &buff) {
+	get_input(buff);
+	std::transform(buff.begin(), buff.end(), buff.begin(), ::tolower);
+}
+
 void store_data(const std::string &build_cmd, const std::string &run_cmd) {
 	std::ofstream config_file(".os-build-utility.conf");
 	config_file << build_cmd << std::endl << run_cmd << std::endl;
@@ -43,7 +48,9 @@ bool is_valid_docker_tag(const std::string &tag) {
 		return false;
 	}
 
-	if (std::all_of(tag.begin(), tag.end(), [](const char c){ return!std::isalnum(c) && c != '-' && c != '_'; })) {
+	if (std::all_of(tag.begin(), tag.end(), [](const char c) {
+		return !std::isalnum(c) && !std::islower(c) && c != '.' && c != '-' && c != '_';
+	})) {
 		return false;
 	}
 
@@ -56,7 +63,7 @@ void build() {
 	std::ifstream config_file(".os-build-utility.conf");
 
 	if (!config_file) {
-		std::cerr << "No configuration file found. Try running " NAME_STR " --configure before building." << std::endl;
+		std::cerr << "No configuration file found. Try running '" NAME_STR " --configure' before building." << std::endl;
 		exit(EXIT_FAILURE);
 	}
 
@@ -72,7 +79,7 @@ void run() {
 	std::ifstream config_file(".os-build-utility.conf");
 
 	if (!config_file) {
-		std::cerr << "No configuration file found. Try running " NAME_STR " --configure before building." << std::endl;
+		std::cerr << "No configuration file found. Try running '" NAME_STR " --configure' before running." << std::endl;
 		exit(EXIT_FAILURE);
 	}
 
@@ -83,7 +90,7 @@ void run() {
 }
 
 void configure_docker_dockerfile() {
-	std::cout << "What's your OS name (only ASCII letters, numbers, '_', '-' and '.')?" << std::endl;
+	std::cout << "What's your OS name to make the Docker container tag?" << std::endl;
 	std::string os_name;
 	get_input(os_name);
 
@@ -106,6 +113,7 @@ void configure_docker_dockerfile() {
 
 	store_data(build_cmd, run_cmd);
 
+	std::filesystem::create_directories(std::filesystem::current_path().string() + "/buildenv");
 	std::ofstream dockerfile("buildenv/Dockerfile");
 
 	dockerfile << "FROM randomdude/gcc-cross-x86_64-elf" << std::endl << std::endl;
@@ -125,10 +133,9 @@ void configure_docker() {
 	if (!std::filesystem::exists("buildenv/Dockerfile")) {
 		std::cout << "Do you want " NAME_STR " to create a Dockerfile for you? [y/N]" << std::endl;
 		std::string user_input;
-		get_input(user_input);
-		std::transform(user_input.begin(), user_input.end(), user_input.begin(), ::tolower);
+		get_input_lowercase(user_input);
 
-		if (user_input != "y") {
+		if (user_input == "y") {
 			configure_docker_dockerfile();
 			return;
 		}
@@ -164,7 +171,7 @@ void configure() {
 	if (exec_system("docker --version") == 0) {
 		std::cout << "Do you want to use Docker for the build environment? [Y/n]" << std::endl;
 		std::string user_input;
-		get_input(user_input);
+		get_input_lowercase(user_input);
 
 		if (user_input != "n") {
 			configure_docker();
@@ -183,6 +190,33 @@ void configure() {
 	store_data(build_cmd, run_cmd);
 }
 
+void edit_config() {
+	std::cout << "Do you want to edit the current configuration or create a new one? [E/n]" << std::endl;
+	std::string user_input;
+	get_input_lowercase(user_input);
+
+	if (user_input == "n") {
+		configure();
+	} else {
+		std::string config_build_cmd;
+		std::string config_run_cmd;
+
+		std::ifstream config_file(".os-build-utility.conf");
+		std::getline(config_file, config_build_cmd);
+		std::getline(config_file, config_run_cmd);
+
+		std::cout << "What's the command to build your OS?" << std::endl << "Current one: \"" << config_build_cmd << "\"" << std::endl;
+		std::string build_cmd;
+		get_input(build_cmd);
+
+		std::cout << "What's the command to run your OS?" << std::endl << "Current one: \"" << config_run_cmd << "\"" << std::endl;
+		std::string run_cmd;
+		get_input(run_cmd);
+
+		store_data(build_cmd, run_cmd);
+	}
+}
+
 int main(const int argc, char **argv){
 	const std::vector<std::string> args(argv, argv + argc);
 
@@ -192,14 +226,23 @@ int main(const int argc, char **argv){
 
 	if (argc == 2) {
 		if (args[1] == "--configure" || args[1] == "-c") {
-			configure();
+			if (std::filesystem::exists(".os-build-utility.conf")) {
+				edit_config();
+			} else {
+				configure();
+			}
+
+			return EXIT_SUCCESS;
 		} else if (args[1] == "--build" || args[1] == "-b") {
 			build();
+			return EXIT_SUCCESS;
 		} else if (args[1] == "--run" || args[1] == "-r") {
 			run();
+			return EXIT_SUCCESS;
 		} else if (args[1] == "-br") {
 			build();
 			run();
+			return EXIT_SUCCESS;
 		}
 	}
 
@@ -207,6 +250,10 @@ int main(const int argc, char **argv){
 		if ((args[1] == "--build" || args[1] == "-b") && (args[2] == "--run" || args[2] == "-r")) {
 			build();
 			run();
+			return EXIT_SUCCESS;
 		}
 	}
+
+	std::cerr << "Invalid arguments." << std::endl;
+	return EXIT_FAILURE;
 }
