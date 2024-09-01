@@ -1,10 +1,12 @@
 #include <algorithm>
 #include <cstdlib>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
+
 #include "metadata.hpp"
 
 
@@ -34,9 +36,59 @@ void get_input_lowercase(std::string &buff) {
 	std::transform(buff.begin(), buff.end(), buff.begin(), ::tolower);
 }
 
+void str_replace(std::string &from, const std::string &to, const std::string &str) {
+	size_t pos = from.find(str);
+
+	while (pos != std::string::npos) {
+		from.replace(pos, str.length(), to);
+		pos = from.find(str, pos + to.length());
+	}
+}
+
 void store_data(const std::string &build_cmd, const std::string &run_cmd) {
 	std::ofstream config_file(".os-build-utility.conf");
 	config_file << build_cmd << std::endl << run_cmd << std::endl;
+	config_file.close();
+}
+
+std::string trim(const std::string &string) {
+	std::string str = string;
+
+	str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](const unsigned char ch) {
+		return !std::isspace(ch);
+	}));
+
+	str.erase(std::find_if(str.rbegin(), str.rend(), [](const unsigned char ch) {
+		return !std::isspace(ch);
+	}).base(), str.end());
+
+	return str;
+}
+
+void get_data(std::string &build_cmd, std::string &run_cmd) {
+	std::ifstream config_file(".os-build-utility.conf");
+
+	if (!config_file) {
+		std::cerr << "No configuration file found. Try running '" NAME_STR " --configure' before running." << std::endl;
+		exit(EXIT_FAILURE);
+	}
+
+	std::getline(config_file, build_cmd);
+
+	while (trim(build_cmd).empty() || trim(build_cmd).at(0) == '#') {
+		std::getline(config_file, build_cmd);
+	}
+
+	std::getline(config_file, run_cmd);
+
+	while (trim(run_cmd).empty() || trim(run_cmd).at(0) == '#') {
+		std::getline(config_file, run_cmd);
+	}
+
+	str_replace(build_cmd, "%cd%", std::filesystem::current_path().string());
+	str_replace(run_cmd, "%cd%", std::filesystem::current_path().string());
+
+	config_file.close();
 }
 
 bool is_valid_docker_tag(const std::string &tag) {
@@ -57,46 +109,30 @@ bool is_valid_docker_tag(const std::string &tag) {
 	return true;
 }
 
-void str_replace(std::string &from, const std::string &to, const std::string &str) {
-	size_t pos = from.find(str);
-
-	while (pos != std::string::npos) {
-		from.replace(pos, str.length(), to);
-		pos = from.find(str, pos + to.length());
-	}
-}
-
 void build() {
-	std::string build_cmd;
+	std::string build_cmd, run_cmd;
 
-	std::ifstream config_file(".os-build-utility.conf");
+	get_data(build_cmd, run_cmd);
 
-	if (!config_file) {
-		std::cerr << "No configuration file found. Try running '" NAME_STR " --configure' before building." << std::endl;
-		exit(EXIT_FAILURE);
+	std::cout << NAME_STR " - Building: \"" << build_cmd << "\"" << std::endl;
+
+	if (const int err_code = system(build_cmd.c_str()); err_code != 0) {
+		std::cerr << "Build failed with exit code " << err_code << "." << std::endl;
+		exit(err_code);
 	}
-
-	std::getline(config_file, build_cmd);
-	str_replace(build_cmd, "%cd%", std::filesystem::current_path().string());
-
-	system(build_cmd.c_str());
 }
 
 void run() {
-	std::string build_cmd;
-	std::string run_cmd;
+    std::string build_cmd, run_cmd;
 
-	std::ifstream config_file(".os-build-utility.conf");
+	get_data(build_cmd, run_cmd);
 
-	if (!config_file) {
-		std::cerr << "No configuration file found. Try running '" NAME_STR " --configure' before running." << std::endl;
-		exit(EXIT_FAILURE);
+    std::cout << NAME_STR " - Running: \"" << run_cmd << "\"" << std::endl;
+
+    if (const int err_code = system(run_cmd.c_str()); err_code != 0) {
+		std::cerr << "Run failed with exit code " << err_code << "." << std::endl;
+		exit(err_code);
 	}
-
-	std::getline(config_file, build_cmd); // Trash the first line
-	std::getline(config_file, run_cmd);
-
-	system(run_cmd.c_str());
 }
 
 void configure_docker_dockerfile() {
@@ -135,6 +171,8 @@ void configure_docker_dockerfile() {
 	dockerfile << "RUN apt-get install -y grub-common" << std::endl << std::endl;
 	dockerfile << "VOLUME /root/env" << std::endl;
 	dockerfile << "WORKDIR /root/env" << std::endl;
+
+	dockerfile.close();
 
 	system(("docker build buildenv -t " + docker_tag).c_str());
 };
@@ -211,17 +249,23 @@ void edit_config() {
 		std::string config_build_cmd;
 		std::string config_run_cmd;
 
-		std::ifstream config_file(".os-build-utility.conf");
-		std::getline(config_file, config_build_cmd);
-		std::getline(config_file, config_run_cmd);
+		get_data(config_build_cmd, config_run_cmd);
 
-		std::cout << "What's the command to build your OS?" << std::endl << "Current one: \"" << config_build_cmd << "\"" << std::endl;
+		std::cout << "What's the command to build your OS?" << std::endl << "Current one (leave blank to reuse): \"" << config_build_cmd << "\"" << std::endl;
 		std::string build_cmd;
 		get_input(build_cmd);
 
-		std::cout << "What's the command to run your OS?" << std::endl << "Current one: \"" << config_run_cmd << "\"" << std::endl;
+		std::cout << "What's the command to run your OS?" << std::endl << "Current one (leave blank to reuse): \"" << config_run_cmd << "\"" << std::endl;
 		std::string run_cmd;
 		get_input(run_cmd);
+
+		if (build_cmd.empty()) {
+			build_cmd = config_build_cmd;
+		}
+
+		if (run_cmd.empty()) {
+			run_cmd = config_run_cmd;
+		}
 
 		store_data(build_cmd, run_cmd);
 	}
@@ -243,13 +287,19 @@ int main(const int argc, char **argv){
 			}
 
 			return EXIT_SUCCESS;
-		} else if (args[1] == "--build" || args[1] == "-b") {
+		}
+
+		if (args[1] == "--build" || args[1] == "-b") {
 			build();
 			return EXIT_SUCCESS;
-		} else if (args[1] == "--run" || args[1] == "-r") {
+		}
+
+		if (args[1] == "--run" || args[1] == "-r") {
 			run();
 			return EXIT_SUCCESS;
-		} else if (args[1] == "-br") {
+		}
+
+		if (args[1] == "-br" || args[1] == "-rb") {
 			build();
 			run();
 			return EXIT_SUCCESS;
@@ -257,7 +307,8 @@ int main(const int argc, char **argv){
 	}
 
 	if (argc == 3) {
-		if ((args[1] == "--build" || args[1] == "-b") && (args[2] == "--run" || args[2] == "-r")) {
+		if ((args[1] == "--build" || args[1] == "-b") && (args[2] == "--run" || args[2] == "-r") &&
+		    (args[1] == "--run" || args[1] == "-r") && (args[2] == "--build" || args[2] == "-b")) {
 			build();
 			run();
 			return EXIT_SUCCESS;
