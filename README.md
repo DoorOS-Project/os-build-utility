@@ -15,7 +15,7 @@ OS Build Utility is a command-line tool developed by the [DoorOS Project](https:
 The OS Build Utility command supports the following usage format:
 
 ```sh
-os-build-utility [[--configure | -c] | [[--build | -b] [--run | -r]]]
+os-build-utility [[--configure | -c] | [[--build | -b] [--run | -r]]] [--force | -f]
 ```
 
 ### Options
@@ -35,7 +35,7 @@ os-build-utility [[--configure | -c] | [[--build | -b] [--run | -r]]]
   os-build-utility [--run | -r]
   ```
 
-- **Build and Run the OS**: Perform both build and run operations.
+- **Build and Run the OS**: Perform both build and run operations. Use `--force` to don't exit on build or run fail.
   ```sh
   os-build-utility [--build --run | -b -r | -br]
   ```

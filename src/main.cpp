@@ -109,27 +109,31 @@ bool is_valid_docker_tag(const std::string &tag) {
 	return true;
 }
 
-void build() {
+void build(const bool forced = false) {
 	std::string build_cmd, run_cmd;
 
 	get_data(build_cmd, run_cmd);
 
 	std::cout << NAME_STR " - Building: \"" << build_cmd << "\"" << std::endl;
 
-	if (const int err_code = system(build_cmd.c_str()); err_code != 0) {
+	if (const int err_code = system(build_cmd.c_str()); forced && err_code != 0) {
+		std::cout << "Build failed with exit code " << err_code << ". - Passing because of \"--force\"" << std::endl;
+	} else if (err_code != 0) {
 		std::cerr << "Build failed with exit code " << err_code << "." << std::endl;
 		exit(err_code);
 	}
 }
 
-void run() {
+void run(const bool forced = false) {
     std::string build_cmd, run_cmd;
 
 	get_data(build_cmd, run_cmd);
 
     std::cout << NAME_STR " - Running: \"" << run_cmd << "\"" << std::endl;
 
-    if (const int err_code = system(run_cmd.c_str()); err_code != 0) {
+    if (const int err_code = system(run_cmd.c_str()); forced && err_code != 0) {
+		std::cout << "Run failed with exit code " << err_code << ". - Passing because of \"--force\"" << std::endl;
+	} else if (err_code != 0) {
 		std::cerr << "Run failed with exit code " << err_code << "." << std::endl;
 		exit(err_code);
 	}
@@ -239,6 +243,7 @@ void configure() {
 }
 
 void edit_config() {
+	std::cout << "! Existing comments will be overwriten !" << std::endl;
 	std::cout << "Do you want to edit the current configuration or create a new one? [E/n]" << std::endl;
 	std::string user_input;
 	get_input_lowercase(user_input);
@@ -278,9 +283,17 @@ int main(const int argc, char **argv){
 		help();
 	}
 
-	if (argc == 2) {
+	if (argc == 2 || argc == 3) {
+		bool force = false;
+		if (argc == 3 && (args[2] == "-f" || args[2] == "--force")) {
+			force = true;
+		} else if (argc == 3) {
+			std::cerr << "Invalid arguments." << std::endl;
+			return EXIT_FAILURE;
+		}
+
 		if (args[1] == "--configure" || args[1] == "-c") {
-			if (std::filesystem::exists(".os-build-utility.conf")) {
+			if (std::filesystem::exists(".os-build-utility.conf") && !force) {
 				edit_config();
 			} else {
 				configure();
@@ -290,27 +303,35 @@ int main(const int argc, char **argv){
 		}
 
 		if (args[1] == "--build" || args[1] == "-b") {
-			build();
+			build(force);
 			return EXIT_SUCCESS;
 		}
 
 		if (args[1] == "--run" || args[1] == "-r") {
-			run();
+			run(force);
 			return EXIT_SUCCESS;
 		}
 
 		if (args[1] == "-br" || args[1] == "-rb") {
-			build();
-			run();
+			build(force);
+			run(force);
 			return EXIT_SUCCESS;
 		}
 	}
 
-	if (argc == 3) {
+	if (argc == 3 || argc == 4) {
 		if ((args[1] == "--build" || args[1] == "-b") && (args[2] == "--run" || args[2] == "-r") &&
 		    (args[1] == "--run" || args[1] == "-r") && (args[2] == "--build" || args[2] == "-b")) {
-			build();
-			run();
+			bool force = false;
+			if (argc == 4 && (args[3] == "-f" || args[3] == "--force")) {
+				force = true;
+			} else {
+				std::cerr << "Invalid arguments." << std::endl;
+				return EXIT_FAILURE;
+			}
+
+			build(force);
+			run(force);
 			return EXIT_SUCCESS;
 		}
 	}
