@@ -61,7 +61,7 @@ To build the tool from source:
    
 ## `.os-build-utility.conf` File specifications
 
-The `.os-build-utility.conf` file is the configuration file for OS Build Utility. It contains the build command for your OS (the first non-empty and non-commented line) and the run command (the second non-empty and non-commented line), and the run command for you OS (the third non-empty and non-commented line). Each line where the first non-whitespace character is a `#` is considered as a comment. The `%cd%` is a special variable that will be replaced by the current directory path.
+The `.os-build-utility.conf` file is the configuration file for OS Build Utility. It contains the build command for your OS (the first non-empty and non-commented line) and the run command for your OS (the second non-empty and non-commented line). Each line where the first non-whitespace character is a `#` is considered as a comment. The `%cd%` is a special variable that will be replaced by the current directory path.
 
 ## License
 
